@@ -27,9 +27,8 @@ class Influx:
             .field("ttl", data['ttl'])
 
         write_api.write(bucket=self.bucket, org=self.org, record=self.point)
-        print('Data written...')
 
-    # NEEDS ALTERATION ACORDING TO ML NEEDS
+    # NEEDS WORK ACCORDING TO ML NEEDS
     def read(self):
         query_api = self.client.query_api()
 
