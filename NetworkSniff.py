@@ -1,0 +1,52 @@
+import scapy.all as sc
+from datetime import datetime
+import MyInflux 
+
+influx = MyInflux.Influx()
+
+# data dictionary parameters
+protocol, sport, dport, flag, ttl, type = 'protocol', 'sport', 'dport', 'flag', 'ttl', 'type'
+
+def packet_callback(packet):
+    
+    layers = [str(packet[layer]) for layer in packet.layers()]
+    for i in range(0, len(layers)-1):
+        layers[i] = layers[i].replace(layers[i+1],'').strip(' / ')
+    
+    def get_tcp_flags(flags:str) -> str:
+        tcp_flags = {'F': "FIN", 'S': "SYN", 'R': "RST", 'P': "PSH", 'A': "ACK", 'U': "URG", 'E': "ECE", 'C': "CWR"}
+        return ' '.join(tuple(tcp_flags[flag] for flag in flags))
+
+    def error_handling(packet, layers, parameter:str):
+        if parameter == ttl:
+            try: return packet[layers[1]].ttl
+            except: return -1
+        elif parameter in (sport, dport):
+            try: return packet['ICMP'].sport, packet['ICMP'].dport
+            except: return '', ''
+
+    def protocol_difference(packet, layers) -> dict:
+        pr0t0c0l = layers[2]
+        if 'TCP' in pr0t0c0l:
+            return {protocol:'tcp', sport:packet['TCP'].sport, dport:packet['TCP'].dport, flag:get_tcp_flags(packet['TCP'].flags), ttl:error_handling(packet, layers, ttl)}
+        elif 'UDP' in pr0t0c0l:
+            return {protocol:'udp', sport:packet['UDP'].sport, dport:packet['UDP'].dport, flag:'', ttl:error_handling(packet, layers, ttl)}
+        elif 'ICMP ' in pr0t0c0l:
+            return {protocol:'icmp', type:packet['ICMP'].type, sport:error_handling(packet, layers, sport)[0], dport:error_handling(packet, layers, dport)[1], flag:'', ttl:error_handling(packet, layers, ttl)}
+
+    parameters = protocol_difference(packet, layers)
+    data = {
+        'src.ip': packet[layers[1]].src,
+        'dst.ip': packet[layers[1]].dst,
+        'protocol': parameters[protocol],
+        'src.port': parameters[sport],
+        'dst.port': parameters[dport],
+        'size': len(packet),
+        'flag': parameters[flag],
+        'ttl': parameters[ttl]
+    }
+
+    influx.write(data)
+
+sc.sniff(prn=packet_callback, store=0, filter='tcp or udp or icmp')
+
