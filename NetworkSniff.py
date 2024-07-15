@@ -1,13 +1,20 @@
 import scapy.all as sc
+from MySQL import SQL
 from datetime import datetime
-import MyInflux 
+import time
+import miscellaneous as m
 
-influx = MyInflux.Influx()
+sql = SQL()
+if sql.table_existence_handler():
+    sql.table_reset()
 
 # data dictionary parameters
 protocol, sport, dport, flag, ttl, type = 'protocol', 'sport', 'dport', 'flag', 'ttl', 'type'
 
 def packet_callback(packet):
+
+    global serial
+    serial += 1
     
     layers = [str(packet[layer]) for layer in packet.layers()]
     for i in range(0, len(layers)-1):
@@ -23,7 +30,7 @@ def packet_callback(packet):
             except: return -1
         elif parameter in (sport, dport):
             try: return packet['ICMP'].sport, packet['ICMP'].dport
-            except: return '', ''
+            except: return 0, 0
 
     def protocol_difference(packet, layers) -> dict:
         pr0t0c0l = layers[2]
@@ -36,17 +43,21 @@ def packet_callback(packet):
 
     parameters = protocol_difference(packet, layers)
     data = {
-        'src.ip': packet[layers[1]].src,
-        'dst.ip': packet[layers[1]].dst,
-        'protocol': parameters[protocol],
-        'src.port': parameters[sport],
-        'dst.port': parameters[dport],
-        'size': len(packet),
+        'serial': serial,
+        'time': time.time()*1000,
+        'src_ip': packet[layers[1]].src,
+        'src_port': parameters[sport],
+        'dst_ip': packet[layers[1]].dst,
+        'dst_port': parameters[dport],
+        'proto': parameters[protocol],
         'flag': parameters[flag],
-        'ttl': parameters[ttl]
+        'ttl': parameters[ttl],
+        'size': len(packet),
+        'alert': 0
     }
 
-    influx.write(data)
+    sql.write(data)
 
+serial = 0
 sc.sniff(prn=packet_callback, store=0, filter='tcp or udp or icmp')
 

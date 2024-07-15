@@ -17,7 +17,7 @@ class SQL:
         return True
 
     def table_reset(self):
-        query = f'DELETE * FROM {self.table}'
+        query = f'DELETE FROM {self.table}'
         self.cur.execute(query)
         self.con.commit()
 
