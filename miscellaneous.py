@@ -1,13 +1,15 @@
 import csv
 import os
 
-def write_dict_to_csv(filename, data):
+def write_dict_to_csv(data):
 
-    file_exists = os.path.isfile(filename) and os.path.getsize(filename) > 0
+    file = 'output.csv'
+
+    file_exists = os.path.isfile(file) and os.path.getsize(file) > 0
 
     headers = data.keys()
     
-    with open(filename, 'a', newline='') as file:
+    with open(file, 'a', newline='') as file:
         writer = csv.DictWriter(file, fieldnames=headers)
         
         if not file_exists:
