@@ -2,7 +2,7 @@ import scapy.all as sc
 from MySQL import SQL
 from datetime import datetime
 import time
-import miscellaneous as m
+import Miscellaneous as m
 
 sql = SQL('packets')
 if sql.table_existence_handler():
@@ -53,13 +53,12 @@ def packet_callback(packet):
         'flag': parameters[flag],
         'ttl': parameters[ttl],
         'size': len(packet),
-        'alert': 0,
-        # 'alert' : 1
+        'alert': 0
     }
 
     sql.write(data)
 
 serial = 0
 interface, sniff_filter = 'Wi-Fi', 'tcp or udp or icmp'
-# interface, sniff_filter = 'VMware Network Adapter VMnet8', 'host 153.48.158.11 or host 214.84.184.101 and ip'
+# interface, sniff_filter = 'VMware Network Adapter VMnet8', 'tcp or udp or icmp'
 sc.sniff(iface=interface, filter=sniff_filter, prn=packet_callback, store=0)
