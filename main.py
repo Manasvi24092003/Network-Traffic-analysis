@@ -1,12 +1,18 @@
 import scapy.all as sc
-from MySQL import SQL
-from datetime import datetime
+from SQL import SQL
 import time
 import Miscellaneous as m
+import Alerts
+import Model_Integration as ModelInt
+from geo import Geo
 
 sql = SQL('packets')
 if sql.table_existence_handler():
     sql.table_reset()
+
+sql3, geo = SQL('geo'), Geo('4a80dc2e1e6bec')
+if sql3.table_existence_handler():
+    sql3.table_reset()
 
 # data dictionary parameters
 protocol, sport, dport, flag, ttl, type = 'protocol', 'sport', 'dport', 'flag', 'ttl', 'type'
@@ -42,23 +48,51 @@ def packet_callback(packet):
             return {protocol:'icmp', type:packet['ICMP'].type, sport:error_handling(packet, layers, sport)[0], dport:error_handling(packet, layers, dport)[1], flag:'VAIBS', ttl:error_handling(packet, layers, ttl)}
 
     parameters = protocol_difference(packet, layers)
-    data = {
-        'serial': serial,
-        'time': time.time()*1000,
-        'src_ip': packet[layers[1]].src,
-        'src_port': parameters[sport],
-        'dst_ip': packet[layers[1]].dst,
-        'dst_port': parameters[dport],
-        'proto': parameters[protocol],
-        'flag': parameters[flag],
-        'ttl': parameters[ttl],
-        'size': len(packet),
-        'alert': 0
-    }
+    try:
+        data = {
+            'serial': serial,
+            'time': time.time()*1000,
+            'src_ip': packet[layers[1]].src,
+            'src_port': parameters[sport],
+            'dst_ip': packet[layers[1]].dst,
+            'dst_port': parameters[dport],
+            'proto': parameters[protocol],
+            'flag': parameters[flag],
+            'ttl': parameters[ttl],
+            'size': len(packet),
+            'alert': 0,
+        }
+    except:
+        serial -= 1
+        return None
 
     sql.write(data)
+    # print(data)
+    
+    # DETECT ANOMALIES USING MACHINE MODEL
+    if ModelInt.run(data):
+        sql.update_alert(data['serial'], 'unknown')
+
+    # attack_dic = {
+    #     1: 'Blacklist',
+    #     2: 'DoS'
+    # }
+
+    # print(data)
+
+    attack = alert.check(data)
+    if attack:
+        location = geo.fetch_json_data(data['dst_ip'])
+        if 'loc' in location.keys():
+            lat, long = location['loc'].split(',')
+            geo_data = {'ip':location['ip'], 'org':location['org'], 'latitude':float(lat), 'longitude':float(long)}
+            sql3.write(geo_data)
+            # print(location if location else None)
+        sql.update_alert(data['serial'], 'Blacklist Detected')
 
 serial = 0
 interface, sniff_filter = 'Wi-Fi', 'tcp or udp or icmp'
+# interface, sniff_filter = 'Wi-Fi', 'icmp'
 # interface, sniff_filter = 'VMware Network Adapter VMnet8', 'tcp or udp or icmp'
+alert = Alerts.Alert()
 sc.sniff(iface=interface, filter=sniff_filter, prn=packet_callback, store=0)

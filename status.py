@@ -1,5 +1,5 @@
 import socket
-from MySQL import SQL
+from SQL import SQL
 import psutil
 import time
 
@@ -33,4 +33,4 @@ def run():
 
 while True:
      run()
-     time.sleep(5)
+     time.sleep(3)
